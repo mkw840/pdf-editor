@@ -408,8 +408,18 @@ async function loadFiles(files) {
       const pdfJs = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
       const n = pdfJs.numPages;
 
-      /* pdf-lib 용 사본 — 내보내기에 사용, ignoreEncryption으로 소유자암호 PDF도 허용 */
-      const pdfLibDoc = await PDFLib.PDFDocument.load(bytes.slice(), { ignoreEncryption: true });
+      /* pdf-lib 용 사본 — 먼저 그냥 로드 시도, 암호화된 PDF면 빈 암호로 재시도
+         ignoreEncryption은 쓰지 않음: 암호화 스트림이 해독 안 된 채로 복사되어 빈 화면이 됨 */
+      let pdfLibDoc;
+      try {
+        pdfLibDoc = await PDFLib.PDFDocument.load(bytes.slice());
+      } catch(_) {
+        try {
+          pdfLibDoc = await PDFLib.PDFDocument.load(bytes.slice(), { password: '' });
+        } catch(e2) {
+          throw new Error('암호로 보호된 PDF입니다. 암호 해제 후 다시 시도하세요.');
+        }
+      }
 
       const fileKey = Symbol(file.name);
       state.pdfLibDocs.set(fileKey, pdfLibDoc);
