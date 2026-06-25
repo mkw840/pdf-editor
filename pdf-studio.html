@@ -202,7 +202,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 /* ── STATE ── */
-const state = { pages: [], uid: 0 };
+const state = { pages: [], pdfLibDocs: new Map(), uid: 0 };
 
 /* ── DOM ── */
 const $  = id => document.getElementById(id);
@@ -402,31 +402,29 @@ async function loadFiles(files) {
 
   for (const file of pdfs) {
     try {
-      const buf = await file.arrayBuffer();
-      const bytes = new Uint8Array(buf);
-      // .slice() creates a copy so PDF.js can transfer its buffer without detaching `bytes`
+      const bytes = new Uint8Array(await file.arrayBuffer());
+
+      /* PDF.js 용 사본 — 워커로 전송 시 버퍼가 detach될 수 있으므로 slice() */
       const pdfJs = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
       const n = pdfJs.numPages;
-      const ids = [];
 
+      /* pdf-lib 용 사본 — 내보내기에 사용, ignoreEncryption으로 소유자암호 PDF도 허용 */
+      const pdfLibDoc = await PDFLib.PDFDocument.load(bytes.slice(), { ignoreEncryption: true });
+
+      const fileKey = Symbol(file.name);
+      state.pdfLibDocs.set(fileKey, pdfLibDoc);
+
+      const ids = [];
       for (let i = 0; i < n; i++) {
         const id = `p${++state.uid}`;
         ids.push(id);
-        state.pages.push({ id, bytes, pageIdx: i, rot: 0, name: file.name, thumb: null });
+        state.pages.push({ id, fileKey, pageIdx: i, rot: 0, name: file.name, thumb: null });
       }
 
       syncUI();
-      if (grid.children.length === 0 || state.pages.length <= n) renderGrid();
-      else {
-        const startIndex = state.pages.length - n;
-        ids.forEach((id, i) => {
-          const card = makeCard(state.pages[startIndex + i], startIndex + i);
-          grid.appendChild(card);
-        });
-        updatePageNums();
-      }
+      renderGrid();
 
-      /* render thumbnails async */
+      /* 썸네일 비동기 렌더 */
       (async () => {
         for (let i = 0; i < n; i++) {
           try {
@@ -443,7 +441,7 @@ async function loadFiles(files) {
 
     } catch(err) {
       console.error(err);
-      showToast(`오류: ${file.name}을 열 수 없습니다.`);
+      showToast(`오류: ${file.name} — ${err.message || '파일을 열 수 없습니다'}`, 5000);
     }
   }
 
@@ -456,21 +454,20 @@ async function exportPDF() {
   if (!state.pages.length) return;
   showProg('PDF 생성 중…');
   try {
-    const { PDFDocument, degrees } = PDFLib;
-    const merged = await PDFDocument.create();
-    const cache = new Map();
+    const merged = await PDFLib.PDFDocument.create();
 
     for (let i = 0; i < state.pages.length; i++) {
       const pg = state.pages[i];
       progTxt.textContent = `페이지 병합 중… (${i+1} / ${state.pages.length})`;
-      if (!cache.has(pg.bytes)) {
-        cache.set(pg.bytes, await PDFDocument.load(pg.bytes));
-      }
-      const srcDoc = cache.get(pg.bytes);
+
+      /* 파일 불러올 때 미리 로드해둔 pdf-lib 문서 사용 — 버퍼 재접근 없음 */
+      const srcDoc = state.pdfLibDocs.get(pg.fileKey);
+      if (!srcDoc) throw new Error(`소스를 찾을 수 없습니다: ${pg.name}`);
+
       const [copied] = await merged.copyPages(srcDoc, [pg.pageIdx]);
       if (pg.rot) {
         const cur = copied.getRotation().angle;
-        copied.setRotation(degrees((cur + pg.rot) % 360));
+        copied.setRotation(PDFLib.degrees((cur + pg.rot) % 360));
       }
       merged.addPage(copied);
     }
@@ -485,7 +482,7 @@ async function exportPDF() {
     showToast(`${state.pages.length}페이지 PDF가 저장되었습니다.`);
   } catch(err) {
     console.error(err);
-    showToast('오류가 발생했습니다. 다시 시도해주세요.');
+    showToast(`병합 오류: ${err.message || err}`, 5000);
   } finally { hideProg(); }
 }
 
@@ -495,7 +492,7 @@ $('addMoreBtn').addEventListener('click', () => fileIn.click());
 fileIn.addEventListener('change', e => { if (e.target.files.length) { loadFiles(e.target.files); fileIn.value=''; } });
 exportBtn.addEventListener('click', exportPDF);
 $('clearBtn').addEventListener('click', () => {
-  if (confirm('모든 페이지를 삭제하시겠습니까?')) { state.pages = []; renderGrid(); }
+  if (confirm('모든 페이지를 삭제하시겠습니까?')) { state.pages = []; state.pdfLibDocs.clear(); renderGrid(); }
 });
 
 /* click on dz (not link) */
