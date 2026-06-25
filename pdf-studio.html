@@ -404,7 +404,8 @@ async function loadFiles(files) {
     try {
       const buf = await file.arrayBuffer();
       const bytes = new Uint8Array(buf);
-      const pdfJs = await pdfjsLib.getDocument({ data: bytes }).promise;
+      // .slice() creates a copy so PDF.js can transfer its buffer without detaching `bytes`
+      const pdfJs = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
       const n = pdfJs.numPages;
       const ids = [];
 
