@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PDF Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F8F8F7;
+  --surface:#FFFFFF;
+  --border:#E6E4E0;
+  --border-hover:#C8C5BF;
+  --text:#1A1A18;
+  --muted:#6B6866;
+  --faint:#A09D99;
+  --accent:#2563EB;
+  --accent-bg:#EFF6FF;
+  --accent-border:#BFDBFE;
+  --danger:#DC2626;
+  --danger-bg:#FEF2F2;
+  --shadow-xs:0 1px 2px rgba(0,0,0,0.05);
+  --shadow-sm:0 1px 4px rgba(0,0,0,0.07),0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:0 4px 16px rgba(0,0,0,0.09),0 2px 4px rgba(0,0,0,0.04);
+  --r:8px;--r-sm:5px;--r-lg:12px
+}
+html,body{height:100%;font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+
+/* ── HEADER ── */
+.hdr{position:fixed;top:0;left:0;right:0;height:58px;background:rgba(255,255,255,0.88);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 28px;z-index:200}
+.logo{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:600;letter-spacing:-0.03em;color:var(--text);text-decoration:none;user-select:none}
+.logo svg{width:22px;height:22px;flex-shrink:0}
+.hdr-right{display:flex;align-items:center;gap:10px}
+.badge{font-size:12px;font-weight:400;color:var(--faint);letter-spacing:0}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border-radius:var(--r-sm);font-size:13px;font-weight:500;letter-spacing:-0.01em;cursor:pointer;border:none;font-family:inherit;transition:background .12s,border-color .12s,color .12s,opacity .12s;line-height:1}
+.btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--bg);border-color:var(--border-hover);color:var(--text)}
+.btn-dark{background:var(--text);color:#fff;border:1px solid transparent}
+.btn-dark:hover{background:#333}
+.btn-dark:disabled{opacity:.32;cursor:not-allowed;pointer-events:none}
+
+/* ── MAIN ── */
+main{padding-top:58px;min-height:100vh}
+
+/* ── DROP ZONE ── */
+#zone{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 58px);padding:40px}
+.dz{border:1.5px dashed var(--border);border-radius:var(--r-lg);padding:72px 56px;max-width:440px;width:100%;text-align:center;cursor:pointer;background:var(--surface);transition:border-color .18s,background .18s}
+.dz:hover,.dz.over{border-color:var(--accent);background:var(--accent-bg)}
+.dz-icon{width:44px;height:44px;stroke:var(--faint);fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;margin:0 auto 22px}
+.dz-title{font-size:17px;font-weight:500;letter-spacing:-0.025em;color:var(--text);margin-bottom:7px}
+.dz-sub{font-size:13px;color:var(--muted);line-height:1.65}
+.dz-link{color:var(--accent);font-weight:500;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.dz-tag{margin-top:22px;font-size:11px;color:var(--faint);letter-spacing:.05em;text-transform:uppercase;font-weight:500;display:flex;align-items:center;gap:5px;justify-content:center}
+
+/* ── WORKSPACE ── */
+#ws{display:none;padding:36px 36px 100px}
+#ws.on{display:block}
+.ws-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px}
+.ws-meta{font-size:13px;color:var(--muted)}
+.ws-meta b{color:var(--text);font-weight:600}
+
+/* ── GRID ── */
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(152px,1fr));gap:16px}
+
+/* ── CARD ── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;cursor:grab;box-shadow:var(--shadow-xs);transition:box-shadow .15s,border-color .15s;position:relative;user-select:none}
+.card:hover{box-shadow:var(--shadow-md);border-color:var(--border-hover)}
+.card.dragging{opacity:.35;cursor:grabbing}
+.card.ins-left{box-shadow:-3px 0 0 0 var(--accent),var(--shadow-xs)}
+.card.ins-right{box-shadow:3px 0 0 0 var(--accent),var(--shadow-xs)}
+
+/* thumb */
+.thumb{aspect-ratio:3/4;background:#EFEFED;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+.thumb img{width:100%;height:100%;object-fit:contain;display:block;transition:transform .28s ease}
+.thumb-spin{width:18px;height:18px;border:2px solid rgba(0,0,0,0.1);border-top-color:var(--faint);border-radius:50%;animation:spin .7s linear infinite}
+
+/* hover actions */
+.acts{position:absolute;top:7px;right:7px;display:flex;gap:4px;opacity:0;transition:opacity .15s}
+.card:hover .acts{opacity:1}
+.act{width:26px;height:26px;background:rgba(255,255,255,0.93);border:1px solid rgba(0,0,0,0.1);border-radius:5px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .1s,border-color .1s;backdrop-filter:blur(4px)}
+.act:hover{background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.12)}
+.act.del:hover{background:var(--danger);border-color:var(--danger);color:#fff}
+.act svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+
+/* footer */
+.cfoot{padding:9px 11px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.pnum{font-size:11px;font-weight:500;color:var(--muted);font-variant-numeric:tabular-nums}
+.psrc{font-size:10px;color:var(--faint);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── BOTTOM BAR ── */
+#bar{position:fixed;bottom:0;left:0;right:0;height:68px;background:rgba(255,255,255,0.94);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--border);display:none;align-items:center;justify-content:center;gap:12px;z-index:200}
+#bar.on{display:flex}
+
+/* ── PROGRESS ── */
+#prog{position:fixed;inset:0;background:rgba(248,248,247,0.85);backdrop-filter:blur(8px);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:400}
+#prog.on{display:flex}
+.prog-spin{width:30px;height:30px;border:2.5px solid rgba(0,0,0,0.1);border-top-color:var(--text);border-radius:50%;animation:spin .65s linear infinite}
+#progTxt{font-size:13px;color:var(--muted)}
+
+/* ── FILE DROP HINT (workspace) ── */
+#dropHint{position:fixed;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center;z-index:300;opacity:0;transition:opacity .2s}
+#dropHint.on{opacity:1}
+.dh-inner{background:rgba(255,255,255,0.97);border:2px dashed var(--accent);border-radius:var(--r-lg);padding:28px 48px;font-size:15px;font-weight:500;color:var(--accent);letter-spacing:-0.02em}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:88px;left:50%;transform:translateX(-50%) translateY(10px);background:var(--text);color:#fff;padding:9px 18px;border-radius:100px;font-size:13px;font-weight:400;opacity:0;transition:opacity .25s,transform .25s;z-index:500;white-space:nowrap;pointer-events:none}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="hdr">
+  <a class="logo" href="#">
+    <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="1" width="13" height="17" rx="1.5"/>
+      <path d="M13 1v5h3"/>
+      <path d="M6 8h7M6 11h7M6 14h4"/>
+      <circle cx="17.5" cy="17.5" r="3.5" fill="white" stroke-width="1.5"/>
+      <path d="M16 17.5h3M17.5 16v3"/>
+    </svg>
+    PDF Studio
+  </a>
+  <div class="hdr-right">
+    <span class="badge" id="hdBadge"></span>
+  </div>
+</header>
+
+<main>
+  <!-- DROP ZONE (empty state) -->
+  <div id="zone">
+    <div class="dz" id="dz">
+      <svg class="dz-icon" viewBox="0 0 44 44">
+        <rect x="6" y="3" width="24" height="31" rx="2"/>
+        <path d="M22 3v8h8"/>
+        <path d="M14 40h18M23 34v6"/>
+        <path d="M19 38l4-4 4 4"/>
+      </svg>
+      <h1 class="dz-title">PDF 파일을 드래그하거나</h1>
+      <p class="dz-sub">
+        여러 파일을 한 번에 불러올 수 있습니다.<br>
+        <span class="dz-link" id="pickBtn">파일 선택하기</span>
+      </p>
+      <div class="dz-tag">
+        <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="5.5" cy="5.5" r="4.5"/><path d="M5.5 3.5V6l1.5 1.5" stroke-linecap="round"/></svg>
+        브라우저 내 처리 · 서버 전송 없음
+      </div>
+    </div>
+  </div>
+
+  <!-- WORKSPACE -->
+  <div id="ws">
+    <div class="ws-bar">
+      <p class="ws-meta"><b id="totPg">0</b>페이지 &nbsp;·&nbsp; 드래그로 순서 변경 &nbsp;·&nbsp; 호버로 회전·삭제</p>
+      <button class="btn btn-ghost" id="addMoreBtn">
+        <svg viewBox="0 0 14 14"><path d="M7 2v10M2 7h10"/></svg>
+        파일 추가
+      </button>
+    </div>
+    <div id="grid"></div>
+  </div>
+</main>
+
+<!-- DROP HINT OVERLAY (workspace) -->
+<div id="dropHint"><div class="dh-inner">파일을 여기에 놓으세요</div></div>
+
+<!-- BOTTOM BAR -->
+<div id="bar">
+  <button class="btn btn-ghost" id="clearBtn">
+    <svg viewBox="0 0 14 14"><path d="M1.5 3.5h11M5 3.5V2.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5v1"/><path d="M11 3.5l-.7 7.7a1 1 0 0 1-1 .9H4.7a1 1 0 0 1-1-.9L3 3.5"/></svg>
+    전체 삭제
+  </button>
+  <button class="btn btn-dark" id="exportBtn" disabled>
+    <svg viewBox="0 0 14 14"><path d="M7 1v8M4 6l3 3 3-3"/><path d="M2 10.5v.5a.5.5 0 0 0 .5.5h9a.5.5 0 0 0 .5-.5v-.5"/></svg>
+    PDF로 저장
+  </button>
+</div>
+
+<!-- PROGRESS -->
+<div id="prog">
+  <div class="prog-spin"></div>
+  <p id="progTxt">처리 중…</p>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- HIDDEN INPUT -->
+<input type="file" id="fileIn" multiple accept=".pdf,application/pdf" style="display:none">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+/* ── STATE ── */
+const state = { pages: [], uid: 0 };
+
+/* ── DOM ── */
+const $  = id => document.getElementById(id);
+const zone    = $('zone');
+const dz      = $('dz');
+const ws      = $('ws');
+const grid    = $('grid');
+const bar     = $('bar');
+const prog    = $('prog');
+const progTxt = $('progTxt');
+const dropHint= $('dropHint');
+const toast   = $('toast');
+const fileIn  = $('fileIn');
+const exportBtn = $('exportBtn');
+const hdBadge = $('hdBadge');
+const totPg   = $('totPg');
+
+/* ── TOAST ── */
+let _tt;
+function showToast(msg, ms=2800) {
+  toast.textContent = msg;
+  toast.classList.add('on');
+  clearTimeout(_tt);
+  _tt = setTimeout(() => toast.classList.remove('on'), ms);
+}
+
+/* ── PROGRESS ── */
+function showProg(msg) { progTxt.textContent = msg; prog.classList.add('on'); }
+function hideProg()    { prog.classList.remove('on'); }
+
+/* ── UI SYNC ── */
+function syncUI() {
+  const n = state.pages.length;
+  totPg.textContent = n;
+  hdBadge.textContent = n > 0 ? `${n}페이지` : '';
+  exportBtn.disabled = n === 0;
+  if (n === 0) {
+    zone.style.display = '';
+    ws.classList.remove('on');
+    bar.classList.remove('on');
+  } else {
+    zone.style.display = 'none';
+    ws.classList.add('on');
+    bar.classList.add('on');
+  }
+}
+
+/* ── RENDER GRID ── */
+function renderGrid() {
+  grid.innerHTML = '';
+  state.pages.forEach((p, i) => grid.appendChild(makeCard(p, i)));
+  syncUI();
+}
+
+function updatePageNums() {
+  grid.querySelectorAll('.pnum').forEach((el, i) => { el.textContent = i + 1; });
+}
+
+/* ── CARD ── */
+function makeCard(page, index) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.dataset.id = page.id;
+  card.draggable = true;
+
+  /* thumb */
+  const thumb = document.createElement('div');
+  thumb.className = 'thumb';
+
+  if (page.thumb) {
+    const img = document.createElement('img');
+    img.src = page.thumb;
+    img.style.transform = `rotate(${page.rot}deg)`;
+    thumb.appendChild(img);
+  } else {
+    const sp = document.createElement('div');
+    sp.className = 'thumb-spin';
+    thumb.appendChild(sp);
+  }
+
+  /* actions */
+  const acts = document.createElement('div');
+  acts.className = 'acts';
+  acts.innerHTML = `
+    <button class="act rotL" title="왼쪽으로 90° 회전">
+      <svg viewBox="0 0 12 12"><path d="M2 6.5a4 4 0 1 0 2.4-3.7"/><path d="M2 2.5V6.5H6" stroke-linecap="round"/></svg>
+    </button>
+    <button class="act rotR" title="오른쪽으로 90° 회전">
+      <svg viewBox="0 0 12 12"><path d="M10 6.5a4 4 0 1 1-2.4-3.7"/><path d="M10 2.5V6.5H6" stroke-linecap="round"/></svg>
+    </button>
+    <button class="act del" title="이 페이지 삭제">
+      <svg viewBox="0 0 12 12"><path d="M1 2.5h10M4.5 2.5V1.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1"/><path d="M9.5 2.5l-.6 7.1a.6.6 0 0 1-.6.4H3.7a.6.6 0 0 1-.6-.4L2.5 2.5"/></svg>
+    </button>`;
+  thumb.appendChild(acts);
+
+  /* footer */
+  const foot = document.createElement('div');
+  foot.className = 'cfoot';
+  foot.innerHTML = `<span class="pnum">${index + 1}</span><span class="psrc" title="${page.name}">${page.name.replace(/\.pdf$/i,'')}</span>`;
+
+  card.appendChild(thumb);
+  card.appendChild(foot);
+
+  /* action handlers */
+  acts.querySelector('.rotL').addEventListener('click', e => {
+    e.stopPropagation();
+    const pg = state.pages.find(p => p.id === page.id);
+    if (!pg) return;
+    pg.rot = ((pg.rot - 90) + 360) % 360;
+    const img = card.querySelector('img');
+    if (img) img.style.transform = `rotate(${pg.rot}deg)`;
+  });
+  acts.querySelector('.rotR').addEventListener('click', e => {
+    e.stopPropagation();
+    const pg = state.pages.find(p => p.id === page.id);
+    if (!pg) return;
+    pg.rot = (pg.rot + 90) % 360;
+    const img = card.querySelector('img');
+    if (img) img.style.transform = `rotate(${pg.rot}deg)`;
+  });
+  acts.querySelector('.del').addEventListener('click', e => {
+    e.stopPropagation();
+    const idx = state.pages.findIndex(p => p.id === page.id);
+    if (idx !== -1) { state.pages.splice(idx, 1); renderGrid(); }
+  });
+
+  /* drag & drop */
+  setupDnD(card, page.id);
+  return card;
+}
+
+/* ── THUMB UPDATE ── */
+function setThumb(pageId, dataUrl) {
+  const pg = state.pages.find(p => p.id === pageId);
+  if (!pg) return;
+  pg.thumb = dataUrl;
+  const card = grid.querySelector(`[data-id="${pageId}"]`);
+  if (!card) return;
+  const thumb = card.querySelector('.thumb');
+  const spinner = thumb.querySelector('.thumb-spin');
+  if (spinner) spinner.remove();
+  if (!thumb.querySelector('img')) {
+    const img = document.createElement('img');
+    img.src = dataUrl;
+    img.style.transform = `rotate(${pg.rot}deg)`;
+    thumb.insertBefore(img, thumb.querySelector('.acts'));
+  }
+}
+
+/* ── DRAG & DROP ── */
+let dragId = null;
+
+function setupDnD(card, id) {
+  card.addEventListener('dragstart', e => {
+    dragId = id;
+    card.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', id);
+  });
+  card.addEventListener('dragend', () => {
+    card.classList.remove('dragging');
+    dragId = null;
+    grid.querySelectorAll('.ins-left,.ins-right').forEach(c => c.classList.remove('ins-left','ins-right'));
+  });
+  card.addEventListener('dragover', e => {
+    e.preventDefault();
+    if (!dragId || dragId === id) return;
+    grid.querySelectorAll('.ins-left,.ins-right').forEach(c => c.classList.remove('ins-left','ins-right'));
+    const mid = card.getBoundingClientRect().left + card.offsetWidth / 2;
+    card.classList.add(e.clientX < mid ? 'ins-left' : 'ins-right');
+  });
+  card.addEventListener('dragleave', () => {
+    card.classList.remove('ins-left','ins-right');
+  });
+  card.addEventListener('drop', e => {
+    e.preventDefault();
+    card.classList.remove('ins-left','ins-right');
+    if (!dragId || dragId === id) return;
+    const si = state.pages.findIndex(p => p.id === dragId);
+    const ti = state.pages.findIndex(p => p.id === id);
+    if (si < 0 || ti < 0) return;
+    const mid = card.getBoundingClientRect().left + card.offsetWidth / 2;
+    const [removed] = state.pages.splice(si, 1);
+    const newTi = state.pages.findIndex(p => p.id === id);
+    const ins = e.clientX < mid ? newTi : newTi + 1;
+    state.pages.splice(ins, 0, removed);
+    renderGrid();
+  });
+}
+
+/* ── LOAD FILES ── */
+async function loadFiles(files) {
+  const pdfs = Array.from(files).filter(f => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
+  if (!pdfs.length) { showToast('PDF 파일만 지원합니다.'); return; }
+
+  showProg('파일을 불러오는 중…');
+
+  for (const file of pdfs) {
+    try {
+      const buf = await file.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      const pdfJs = await pdfjsLib.getDocument({ data: bytes }).promise;
+      const n = pdfJs.numPages;
+      const ids = [];
+
+      for (let i = 0; i < n; i++) {
+        const id = `p${++state.uid}`;
+        ids.push(id);
+        state.pages.push({ id, bytes, pageIdx: i, rot: 0, name: file.name, thumb: null });
+      }
+
+      syncUI();
+      if (grid.children.length === 0 || state.pages.length <= n) renderGrid();
+      else {
+        const startIndex = state.pages.length - n;
+        ids.forEach((id, i) => {
+          const card = makeCard(state.pages[startIndex + i], startIndex + i);
+          grid.appendChild(card);
+        });
+        updatePageNums();
+      }
+
+      /* render thumbnails async */
+      (async () => {
+        for (let i = 0; i < n; i++) {
+          try {
+            const pjPage = await pdfJs.getPage(i + 1);
+            const vp = pjPage.getViewport({ scale: 0.45 });
+            const canvas = document.createElement('canvas');
+            canvas.width = vp.width;
+            canvas.height = vp.height;
+            await pjPage.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+            setThumb(ids[i], canvas.toDataURL('image/jpeg', 0.82));
+          } catch(_) {}
+        }
+      })();
+
+    } catch(err) {
+      console.error(err);
+      showToast(`오류: ${file.name}을 열 수 없습니다.`);
+    }
+  }
+
+  hideProg();
+  syncUI();
+}
+
+/* ── EXPORT ── */
+async function exportPDF() {
+  if (!state.pages.length) return;
+  showProg('PDF 생성 중…');
+  try {
+    const { PDFDocument, degrees } = PDFLib;
+    const merged = await PDFDocument.create();
+    const cache = new Map();
+
+    for (let i = 0; i < state.pages.length; i++) {
+      const pg = state.pages[i];
+      progTxt.textContent = `페이지 병합 중… (${i+1} / ${state.pages.length})`;
+      if (!cache.has(pg.bytes)) {
+        cache.set(pg.bytes, await PDFDocument.load(pg.bytes));
+      }
+      const srcDoc = cache.get(pg.bytes);
+      const [copied] = await merged.copyPages(srcDoc, [pg.pageIdx]);
+      if (pg.rot) {
+        const cur = copied.getRotation().angle;
+        copied.setRotation(degrees((cur + pg.rot) % 360));
+      }
+      merged.addPage(copied);
+    }
+
+    progTxt.textContent = '파일 저장 중…';
+    const out = await merged.save();
+    const blob = new Blob([out], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'merged.pdf'; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    showToast(`${state.pages.length}페이지 PDF가 저장되었습니다.`);
+  } catch(err) {
+    console.error(err);
+    showToast('오류가 발생했습니다. 다시 시도해주세요.');
+  } finally { hideProg(); }
+}
+
+/* ── EVENTS ── */
+$('pickBtn').addEventListener('click', () => fileIn.click());
+$('addMoreBtn').addEventListener('click', () => fileIn.click());
+fileIn.addEventListener('change', e => { if (e.target.files.length) { loadFiles(e.target.files); fileIn.value=''; } });
+exportBtn.addEventListener('click', exportPDF);
+$('clearBtn').addEventListener('click', () => {
+  if (confirm('모든 페이지를 삭제하시겠습니까?')) { state.pages = []; renderGrid(); }
+});
+
+/* click on dz (not link) */
+dz.addEventListener('click', e => { if (e.target.id !== 'pickBtn') fileIn.click(); });
+
+/* body drag → file vs card */
+let _dhTimer;
+document.addEventListener('dragover', e => {
+  e.preventDefault();
+  const isFile = e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files');
+  if (isFile && state.pages.length === 0) { dz.classList.add('over'); }
+  if (isFile && state.pages.length > 0)  { dropHint.classList.add('on'); clearTimeout(_dhTimer); }
+});
+document.addEventListener('dragleave', e => {
+  if (!e.relatedTarget || !document.body.contains(e.relatedTarget)) {
+    dz.classList.remove('over');
+    _dhTimer = setTimeout(() => dropHint.classList.remove('on'), 80);
+  }
+});
+document.addEventListener('drop', e => {
+  e.preventDefault();
+  dz.classList.remove('over');
+  dropHint.classList.remove('on');
+  if (e.dataTransfer.files && e.dataTransfer.files.length) loadFiles(e.dataTransfer.files);
+});
+
+syncUI();
+</script>
+</body>
+</html>
